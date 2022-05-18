@@ -1,0 +1,2 @@
+otf2bdf -o meteo-icon-regular-${FONT_SIZE}.bdf meteoicons.ttf -p ${FONT_SIZE} -r 75dpi
+tinyfontgen -yadvance 0 --package meteoicon --fontname MeteoIcon${FONT_SIZE} meteo-icon-regular-${FONT_SIZE}.bdf --output MeteoIcon-Regular-${FONT_SIZE}.go --all --verbose
