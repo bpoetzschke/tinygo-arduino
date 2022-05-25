@@ -3,19 +3,18 @@ package openweather
 type CurrentWeatherData struct {
 	Weather Weather
 	Main    MainWeatherData
+	DT      int32
 }
 
 type MainWeatherData struct {
-	Temp      float64
-	FeelsLike float64
-	TempMin   float64
-	TempMax   float64
-	Pressure  float64
-	Humidity  float64
+	Temp     int16
+	TempMin  int16
+	TempMax  int16
+	Humidity int16
 }
 
 type Weather struct {
-	ID          int64
+	ID          int16
 	Main        string
 	Description string
 	Icon        string

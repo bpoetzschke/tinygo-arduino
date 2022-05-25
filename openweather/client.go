@@ -12,43 +12,24 @@ import (
 	"tinygo.org/x/drivers/net/tls"
 )
 
-const (
-	server                 = "api.openweathermap.org"
-	protocol               = "https"
-	baseAPIUrl             = "/data/2.5/"
-	currentWeatherEndpoint = "weather"
-)
-
 var (
 	buf [1024]byte
 )
 
-type Client interface {
-	GetCurrentWeather(data *CurrentWeatherData) error
+type Client struct {
+	Lat               float64
+	Long              float64
+	ApiKey            string
+	connection        net.Conn
+	currentWeatherUrl string
 }
 
-func NewClient(lat, long float64, apiKey string) Client {
-	c := client{
-		lat:    lat,
-		long:   long,
-		apiKey: apiKey,
-	}
-
-	return &c
+func (c *Client) Setup() {
+	c.currentWeatherUrl = fmt.Sprintf("https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric", c.Lat, c.Long, c.ApiKey)
 }
 
-type client struct {
-	lat        float64
-	long       float64
-	apiKey     string
-	connection net.Conn
-}
-
-func (c *client) GetCurrentWeather(currWeather *CurrentWeatherData) error {
-	currentWeatherUrl := fmt.Sprintf("%s://%s%s%s?lat=%f&lon=%f&appid=%s&units=metric", protocol, server, baseAPIUrl, currentWeatherEndpoint, c.lat, c.long, c.apiKey)
-	println(currentWeatherUrl)
-
-	start, end, err := c.makeHTTPSRequest(currentWeatherUrl)
+func (c *Client) GetCurrentWeather(currWeather *CurrentWeatherData) error {
+	start, end, err := c.makeHTTPSRequest(c.currentWeatherUrl)
 
 	if err != nil {
 		return err
@@ -67,14 +48,23 @@ func (c *client) GetCurrentWeather(currWeather *CurrentWeatherData) error {
 	if err != nil {
 		return err
 	}
+
 	err = c.parseMain(mainData, &currWeather.Main)
 	if err != nil {
 		return err
 	}
+
+	var val int64
+	val, err = jsonparser.GetInt(buf[start:end], "dt")
+	if err != nil {
+		return err
+	}
+	currWeather.DT = int32(val)
+
 	return nil
 }
 
-func (c *client) makeHTTPSRequest(rawUrl string) (int, int, error) {
+func (c *Client) makeHTTPSRequest(rawUrl string) (int, int, error) {
 	println("HTTPS request to", rawUrl)
 	parsedUrl, err := url.Parse(rawUrl)
 	if err != nil {
@@ -107,8 +97,6 @@ func (c *client) makeHTTPSRequest(rawUrl string) (int, int, error) {
 	fmt.Fprintln(conn)
 
 	time.Sleep(time.Second)
-	println("Reading conn")
-
 	defer conn.Close()
 	var offset = 0
 	// TODO consider reading the payload at hoc instead of writing it to a buffer
@@ -149,16 +137,18 @@ func (c *client) makeHTTPSRequest(rawUrl string) (int, int, error) {
 		return -1, -1, fmt.Errorf("unexpected http status %d", statusInt)
 	}
 
-	println("Reading done")
 	return start, end, nil
 }
 
-func (c *client) parseWeather(data []byte, target *Weather) error {
+func (c *Client) parseWeather(data []byte, target *Weather) error {
 	var err error
-	target.ID, err = jsonparser.GetInt(data, "id")
+	var val int64
+	val, err = jsonparser.GetInt(data, "id")
 	if err != nil {
 		return err
 	}
+	target.ID = int16(val)
+
 	target.Main, err = jsonparser.GetString(data, "main")
 	if err != nil {
 		return err
@@ -175,31 +165,32 @@ func (c *client) parseWeather(data []byte, target *Weather) error {
 	return nil
 }
 
-func (c *client) parseMain(data []byte, target *MainWeatherData) error {
+func (c *Client) parseMain(data []byte, target *MainWeatherData) error {
 	var err error
-	target.Temp, err = jsonparser.GetFloat(data, "temp")
+	var val float64
+	val, err = jsonparser.GetFloat(data, "temp")
 	if err != nil {
 		return err
 	}
-	target.FeelsLike, err = jsonparser.GetFloat(data, "feels_like")
+	target.Temp = int16(val)
+
+	val, err = jsonparser.GetFloat(data, "temp_min")
 	if err != nil {
 		return err
 	}
-	target.TempMin, err = jsonparser.GetFloat(data, "temp_min")
+	target.TempMin = int16(val)
+
+	val, err = jsonparser.GetFloat(data, "temp_max")
 	if err != nil {
 		return err
 	}
-	target.TempMax, err = jsonparser.GetFloat(data, "temp_max")
+	target.TempMax = int16(val)
+
+	val, err = jsonparser.GetFloat(data, "humidity")
 	if err != nil {
 		return err
 	}
-	target.Pressure, err = jsonparser.GetFloat(data, "pressure")
-	if err != nil {
-		return err
-	}
-	target.Humidity, err = jsonparser.GetFloat(data, "humidity")
-	if err != nil {
-		return err
-	}
+	target.Humidity = int16(val)
+
 	return nil
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/bpoetzschke/tinygo-arduino/epd"
 	"github.com/bpoetzschke/tinygo-arduino/openweather"
 	"github.com/bpoetzschke/tinygo-arduino/wifi"
@@ -10,13 +9,14 @@ import (
 )
 
 const (
-	lat  = 42.365250
-	long = -71.105011
+	lat   = 42.365250
+	long  = -71.105011
+	DEBUG = false
 )
 
 var (
 	w                 wifi.Wifi
-	openWeatherClient = openweather.NewClient(lat, long, openWeatherMapAPIKey)
+	openWeatherClient = openweather.Client{Lat: lat, Long: long, ApiKey: openWeatherMapAPIKey}
 	currentWeather    openweather.CurrentWeatherData
 	display           = epd.Display{}
 )
@@ -24,35 +24,27 @@ var (
 func main() {
 	waitSerial()
 
+	openWeatherClient.Setup()
 	err := w.Setup()
 	PrintErrIfNotNil(err)
 
 	err = w.ConnectToAP(ssid, pass)
 	PrintErrIfNotNil(err)
 
-	err = display.Setup()
+	err = display.Setup(DEBUG)
 	PrintErrIfNotNil(err)
 
 	for {
 		err := openWeatherClient.GetCurrentWeather(&currentWeather)
 		PrintErrIfNotNil(err)
 
-		println(fmt.Sprintf("Curr weather: %#v", currentWeather))
-
-		println("Clear display")
 		display.Clear()
-		//println("Split screen")
-		//display.SplitScreen()
-		println("Display weather icon")
-		//display.DisplayCurrentWeatherIcon(meteoicon.GetMeteoIcon(currentWeather.Weather.Icon), &meteoicon.MeteoIcon48pt)
-		//display.DisplayCurrentWeatherCondition("Clouds")
-		println("display")
+		//display.DisplayCurrentWeather(&currentWeather, meteoicon.GetMeteoIcon(currentWeather.Weather.Icon), &meteoicon.MeteoIcon48pt)
 		err = display.Display()
 		PrintErrIfNotNil(err)
 		println("display done")
-		//currentWeather = nil
 
-		time.Sleep(30 * time.Second)
+		time.Sleep(time.Minute)
 	}
 }
 

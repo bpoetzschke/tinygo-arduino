@@ -2,8 +2,11 @@ package epd
 
 import (
 	"github.com/bpoetzschke/tinygo-arduino/freesans"
+	"github.com/bpoetzschke/tinygo-arduino/openweather"
 	"image/color"
 	"machine"
+	"strings"
+	"time"
 	"tinygo.org/x/drivers/waveshare-epd/epd2in13x"
 	"tinygo.org/x/tinydraw"
 	"tinygo.org/x/tinyfont"
@@ -23,9 +26,10 @@ var (
 type Display struct {
 	epDisplay  epd2in13x.Device
 	colorBlack color.RGBA
+	debug      bool
 }
 
-func (d *Display) Setup() error {
+func (d *Display) Setup(debug bool) error {
 
 	err := machine.SPI0.Configure(machine.SPIConfig{
 		Frequency: 8000000,
@@ -36,6 +40,7 @@ func (d *Display) Setup() error {
 
 	d.epDisplay = epd2in13x.New(machine.SPI0, machine.D10, machine.D9, machine.D8, machine.D7)
 	d.epDisplay.Configure(epd2in13x.Config{})
+	d.debug = debug
 	return nil
 }
 
@@ -49,7 +54,7 @@ func (d *Display) SplitScreen() {
 	tinydraw.Line(&d.epDisplay, displayHeight/2, 0, displayHeight/2, displayWidth, colorBlack)
 }
 
-func (d *Display) DisplayCurrentWeatherIcon(icon string, font tinyfont.Fonter) {
+func (d *Display) DisplayCurrentWeather(currWeather *openweather.CurrentWeatherData, meteoIcon string, font *tinyfont.Font) {
 	// long side of display is y and short one is x
 	/*
 			--> x
@@ -61,13 +66,49 @@ func (d *Display) DisplayCurrentWeatherIcon(icon string, font tinyfont.Fonter) {
 			|       |
 			+-------+
 	*/
-	println("Displaying icon:", icon)
-	// the icon needs to be positioned centered in the bounding box of the font ideally
-	tinyfont.WriteLineRotated(&d.epDisplay, font, displayHeight-2, 1, icon, colorBlack, tinyfont.ROTATION_90)
-}
+	glyph := font.GetGlyph(rune(meteoIcon[0]))
+	maxWidth := font.BBox[0]
+	maxHeight := font.BBox[1]
 
-func (d *Display) DisplayCurrentWeatherCondition(cond string) {
-	tinyfont.WriteLineRotated(&d.epDisplay, &freesans.Regular12pt7b, (displayHeight/2)-5+17, 1, cond, colorBlack, tinyfont.ROTATION_90)
+	weatherIconXOrigin := int16(displayHeight - 25)
+	weatherIconYOrigin := int16(1)
+
+	glyphXOffset := int16(maxHeight) - int16(glyph.Info().Height)
+	if glyphXOffset > 0 {
+		glyphXOffset /= 2
+	}
+
+	glyphYOffset := int16(maxWidth) - int16(glyph.Info().Width)
+	if glyphYOffset > 0 {
+		glyphYOffset /= 2
+	}
+
+	xPos := weatherIconXOrigin - glyphXOffset
+	yPos := weatherIconYOrigin + glyphYOffset
+
+	condFont := &freesans.Regular9pt7b
+
+	currTime := time.Unix(int64(currWeather.DT)-14400, 0)
+	currDayStr := currTime.Format("Mon, 02 Jan 2006")
+	tinyfont.WriteLineRotated(&d.epDisplay, condFont, displayHeight-1-int16(condFont.BBox[1]), 1, currDayStr, colorBlack, tinyfont.ROTATION_90)
+
+	if d.debug {
+		tinydraw.Rectangle(&d.epDisplay, weatherIconXOrigin-int16(maxHeight), weatherIconYOrigin, int16(maxWidth), int16(maxHeight), colorBlack)
+	}
+
+	tinyfont.WriteLineRotated(&d.epDisplay, font, xPos, yPos, meteoIcon, colorBlack, tinyfont.ROTATION_90)
+
+	condXOrigin := weatherIconXOrigin - int16(maxHeight) - int16(condFont.BBox[1]) - 5
+	tinyfont.WriteLineRotated(&d.epDisplay, condFont, condXOrigin, 1, strings.Title(currWeather.Weather.Description), colorBlack, tinyfont.ROTATION_90)
+
+	circleRadius := int16(4)
+	circleXPos := displayHeight - 7 - circleRadius
+	circleYStart := displayWidth - 4 - circleRadius
+	circleSpacing := (2 * circleRadius) + 2
+	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart, circleRadius, colorBlack)
+	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart-circleSpacing, circleRadius, colorBlack)
+	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart-(2*circleSpacing), circleRadius, colorBlack)
+	tinydraw.FilledCircle(&d.epDisplay, circleXPos, circleYStart-(3*circleSpacing), circleRadius, colorRed)
 }
 
 func (d *Display) Display() error {
