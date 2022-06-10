@@ -1,13 +1,14 @@
 package epd
 
 import (
+	"fmt"
+	"github.com/bpoetzschke/tinygo-arduino/epd2in13x"
 	"github.com/bpoetzschke/tinygo-arduino/freesans"
 	"github.com/bpoetzschke/tinygo-arduino/openweather"
 	"image/color"
 	"machine"
 	"strings"
 	"time"
-	"tinygo.org/x/drivers/waveshare-epd/epd2in13x"
 	"tinygo.org/x/tinydraw"
 	"tinygo.org/x/tinyfont"
 )
@@ -87,6 +88,8 @@ func (d *Display) DisplayCurrentWeather(currWeather *openweather.CurrentWeatherD
 	yPos := weatherIconYOrigin + glyphYOffset
 
 	condFont := &freesans.Regular9pt7b
+	//condFont := &freesans.FreeSans18pt
+	//tempFont := &freesans.Regular9pt7b
 
 	currTime := time.Unix(int64(currWeather.DT)-14400, 0)
 	currDayStr := currTime.Format("Mon, 02 Jan 2006")
@@ -100,15 +103,31 @@ func (d *Display) DisplayCurrentWeather(currWeather *openweather.CurrentWeatherD
 
 	condXOrigin := weatherIconXOrigin - int16(maxHeight) - int16(condFont.BBox[1]) - 5
 	tinyfont.WriteLineRotated(&d.epDisplay, condFont, condXOrigin, 1, strings.Title(currWeather.Weather.Description), colorBlack, tinyfont.ROTATION_90)
+	d.showPageIndicator(4, 1)
+
+	tinyfont.WriteLineRotated(&d.epDisplay, condFont, 65, 52, fmt.Sprintf("Temperature: %d ºC", currWeather.Main.Temp), colorBlack, tinyfont.ROTATION_90)
+	tinyfont.WriteLineRotated(&d.epDisplay, condFont, 48, 52, "fo%o", colorBlack, tinyfont.ROTATION_90)
+}
+
+func (d *Display) showPageIndicator(totalPages, currentPage int8) {
+	if currentPage > totalPages {
+		currentPage = totalPages
+	} else if currentPage < 1 {
+		currentPage = 1
+	}
 
 	circleRadius := int16(4)
-	circleXPos := displayHeight - 7 - circleRadius
-	circleYStart := displayWidth - 4 - circleRadius
 	circleSpacing := (2 * circleRadius) + 2
-	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart, circleRadius, colorBlack)
-	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart-circleSpacing, circleRadius, colorBlack)
-	tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart-(2*circleSpacing), circleRadius, colorBlack)
-	tinydraw.FilledCircle(&d.epDisplay, circleXPos, circleYStart-(3*circleSpacing), circleRadius, colorRed)
+	circleXPos := displayHeight - 7 - circleRadius
+	circleYStart := displayWidth - 4 - (int16(totalPages-1) * circleSpacing) - 2*circleRadius
+
+	for i := int8(0); i < totalPages; i++ {
+		if (currentPage - 1) == i {
+			tinydraw.FilledCircle(&d.epDisplay, circleXPos, circleYStart+(int16(i)*circleSpacing), circleRadius, colorRed)
+		} else {
+			tinydraw.Circle(&d.epDisplay, circleXPos, circleYStart+(int16(i)*circleSpacing), circleRadius, colorBlack)
+		}
+	}
 }
 
 func (d *Display) Display() error {
@@ -119,4 +138,22 @@ func (d *Display) Display() error {
 
 	d.epDisplay.WaitUntilIdle()
 	return nil
+}
+
+func (d *Display) DisplayFrame() {
+	d.epDisplay.DisplayFrame()
+
+	d.epDisplay.WaitUntilIdle()
+}
+
+func (d *Display) SetRectColor() error {
+	width := int16((212 / 2) / 8)
+	height := int16(104 / 2)
+	buf := make([]byte, width*height)
+
+	for i := 0; i < len(buf); i++ {
+		buf[i] = 0x00
+	}
+
+	return d.epDisplay.SetDisplayRectColor(buf, 0, 0, width*8, height, epd2in13x.BLACK)
 }

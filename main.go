@@ -35,12 +35,15 @@ func main() {
 	PrintErrIfNotNil(err)
 
 	for {
-		err := openWeatherClient.GetCurrentWeather(&currentWeather)
-		PrintErrIfNotNil(err)
+		//err := openWeatherClient.GetCurrentWeather(&currentWeather)
+		//PrintErrIfNotNil(err)
 
 		display.Clear()
+		//err := display.SetRectColor()
+		//PrintErrIfNotNil(err)
 		//display.DisplayCurrentWeather(&currentWeather, meteoicon.GetMeteoIcon(currentWeather.Weather.Icon), &meteoicon.MeteoIcon48pt)
-		err = display.Display()
+		//display.DisplayFrame()
+		err := display.Display()
 		PrintErrIfNotNil(err)
 		println("display done")
 
